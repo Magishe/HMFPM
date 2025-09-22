@@ -14,8 +14,7 @@ arXiv: [https://arxiv.org/abs/2509.05549](https://arxiv.org/abs/2509.05549)
 - [Installation](#installation)
 - [Usage](#usage)
 - [Example Results](#example-results)
-- [Citation](#citation)
-- [License](#license)
+- [BiBTeX](#BiBTeX)
 
 ---
 
@@ -32,7 +31,7 @@ The workflow consists of two stages:
 2. **Dark-field multiplexed reconstruction**  
    - Record a small number of dark-field measurements with **3–6 simultaneously illuminated LEDs** in specially designed multiplexing patterns.  
    - Use a customized optimization algorithm to reconstruct the dark-field spectrum, initialized and constrained by the aberration-corrected bright-field spectrum and the extracted pupil function.
-   - 
+     
 <p align="center">
   <table>
     <tr>
@@ -45,7 +44,6 @@ The workflow consists of two stages:
     </tr>
   </table>
   <br>
-  <em>Figure 1: HMFPM integrates APIC-based bright-field initialization (a) with multiplexed dark-field reconstruction (b), significantly reducing required measurements while ensuring robust aberration correction.</em>
 </p>
 
 **Advantages over MFPM and APIC:**  
@@ -60,19 +58,20 @@ The workflow consists of two stages:
 ├── Data                               # Raw simulation and experimental datasets
 ├── HMFPM_experiment.py                # Main pipeline for experimental data
 ├── HMFPM_simulation.py                # Main pipeline for simulation data
-├── subfunctionAPIC                    # APIC-related subfunctions for reconstruction
+├── subfunctionAPIC                    # Subfunctions for HMFPM reconstruction
 └── README.md                          # Project documentation
-
+```
+---
 ## Installation
 
 1. Clone this repository to your local machine:
     ```bash
-    git clone https://github.com/Magishe/WSI-APIC.git
+    git clone https://github.com/Magishe/HMFPM.git
     ```
 
 2. Navigate to the project directory:
     ```bash
-    cd WSI-APIC
+    cd HMFPM
     ```
 
 3. Install the dependencies:
@@ -84,51 +83,75 @@ The workflow consists of two stages:
 
 
 ## Usage
+### 1. Using the demo data
+```bash
 
-### 1. Sample location segmentation
-Implement `Sample_Segmentation.py` to automatically locate and segment samples from the image captured by our sample-locating system (`Sample location segmentation/NSCLC.tif`).
+    python HMFPM_experiment.py
+    python HMFPM_simulation.py
+```
+### 2. Construct your own data
+To run HMFPM on your own data, you need to create a MATLAB v7.3 .mat file that contains the required experimental parameters and raw measurements. Save this file under the path:
+```bash
+Data/experiment/
+```
 
-    python Sample_Segmentation.py
-  
+#### Required variables in the `.mat` file
 
-### 2. APIC Reconstruction
-Implement `APIC_Reconstruction.py` to perform GPU-accelerated APIC reconstruction on small ROI patches.
+- **dpix_c:**  Camera pixel size in micrometers (e.g., 3.45 µm).
 
-    python APIC_Reconstruction.py
+- **lambda_g:**   Illumination wavelength in micrometers (e.g., 0.520 µm).  
 
-Tunable Parameters:
-#### (1). Dataloading
-Assume we want to reconstruct the Siemens Star sample which was imaged using a highly aberrated imaging system, which is inside a folder named "Data". Then, we modify the code as
-      
-      python APIC_Reconstruction.py --folderName 'Data'
+- **mag:**  Objective magnification (e.g., 4).
+   
+- **na_illu:**  Illumination numerical aperture of the NA-matching illumination (e.g., 0.1254).  
 
-As there is only one file inside the reducedData folder whose name contains "Siemens_Star_g", we can set ```fileNameKeyword``` with name "Siemens_Star_g". If there are multiple files, then we could use ```additionalKeyword```
+- **na_obj:**  Objective numerical aperture (e.g., 0.1310).  
 
-      python APIC_Reconstruction.py --folderName 'Data' --fileNameKeyword 'Siemens_Star_g'
+- **na_rp_cal:**   Calibrated spatial frequency coordinates of system NA.
+-  
+- **freqXY_calib_BF**  (double, N×2)
+  Calibrated spatial frequency coordinates for NA-matching LEDs.  
+  It is calculated as:  
 
-#### (2). Basic parameters
-1. `enableROI`: When it is set to `false`, the program uses the entire field-of-view in the reconstruction. It is recommended to set to `true` as APIC scales badly with respect to the patch size. A good practice is conducting reconstruction using multiple patches and stiching them together to obtain a larger reconstruction coverage.
-2. `ROILength`: This parameter is used only when `useROI` is `true`. It specifies the patch sizes used in the reconstruction. It is preferable to set this to be below 256.
-3. `ROIcenter`: Define the center of ROI. Example: ROIcenter = [256,256]; ROIcenter = 'auto'.
-4. `useAbeCorrection`: Whether to enable aberration correction. It is always recommended to set to `true`. We keep this parameter so that one can see the influence of the aberration if we do not take aberration into consideration.
-5. `paddingHighRes`: To generate a high-resolution image, upsampling is typically requried due to the requirement of Nyquist sampling. `paddingHighRes` tells the program the upsampling ratio.
+  `freqXY_calib = (patch_size * dpix_c) / (mag * lambda_g) * illumination_NA + [patch_size/2, patch_size/2]`
 
-Demo Usage:
+- **freqXY_calib_DF** (cell, 1×N_D)  
+  Calibrated spatial frequency coordinates for dark-field LEDs. Here, **N_D** denotes the total number of dark-field measurements. Each cell stores a 2D `freqXY_calib` coordinate, corresponding to the set of LEDs that are illuminated simultaneously in one measurement. These coordinates are calculated using the same equation as for **freqXY_calib_BF**.  
 
-      python APIC_Reconstruction.py --enableROI --ROILength 256 --ROIcenter auto --useAbeCorrection --paddingHighRes 3
+- **I_low** (uint16, H×W×(N+N_D))  
+  Raw low-resolution intensity stack, where H and W are the image dimensions (e.g., 2048×2048), **N** is the number of NA-matching measurements, and **N_D** is the number of multiplexed dark-field measurements. The first **N** frames correspond to NA-matching measurements, followed by **N_D** frames corresponding to multiplexed dark-field measurements.  
 
-### 3. APIC Reconstruction for WholeFOV
-GPU-accelerated reconstruction script for full-FOV (2560x2560) images, including auto-stitching functionality
+## Example results
 
-    python APIC_Reconstruction_WholeFOV.py
+## Simulation results
+<p align="center">
+  <table>
+    <tr>
+      <td><img src="./figures/Figure_3.jpg" alt="Siemens star simulation" width="350"/></td>
+      <td><img src="./figures/Figure_4.jpg" alt="Natural image simulation" width="350"/></td>
+    </tr>
+    <tr>
+      <td align="center"><em>(1) Siemens star simulation </em></td>
+      <td align="center"><em>(2) Natural image simulation </em></td>
+    </tr>
+  </table>
+  <br>
+</p>
 
-Tunable Parameters:
-1. `patchNumber`: The total number of patches into which you intend to divide the full field of view (FOV) along one dimension
-2. `overlappingSize`: The overlap size between different patches (for stitching inside one FOV)
-
-Demo Usage:
-
-      python APIC_Reconstruction_WholeFOV.py --patchNumber 5 --overlappingSize 20
+## Experimental results
+<p align="center">
+  <table>
+    <tr>
+      <td><img src="./figures/Figure_5.jpg" alt="Siemens star experiments" width="350"/></td>
+      <td><img src="./figures/Figure_6.jpg" alt="NSCLC phase sample experiments" width="350"/></td>
+    </tr>
+    <tr>
+      <td align="center"><em>(1) Siemens star experiments </em></td>
+      <td align="center"><em>(2) NSCLC phase sample experiments </em></td>
+    </tr>
+  </table>
+  <br>
+</p>
 
 ## BiBTeX
 @misc{zhao2025hybridilluminationmultiplexedfourierptychographic,
